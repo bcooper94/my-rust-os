@@ -144,6 +144,8 @@ pub fn _print(args: fmt::Arguments) {
 }
 
 mod tests {
+    // Rust complains about importing super::* even though it's needed
+    #[allow(unused_imports)]
     use super::*;
 
     #[test_case]
