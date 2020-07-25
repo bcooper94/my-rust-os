@@ -11,8 +11,7 @@ use core::panic::PanicInfo;
 
 pub mod serial;
 pub mod vga_buffer;
-
-mod qemu;
+pub mod qemu;
 
 pub trait Testable {
     fn run(&self) -> ();
