@@ -20,6 +20,7 @@ volatile = "0.2.6"
 spin = "0.5.2"
 x86_64 = "0.11.0"
 uart_16550 = "0.2.0" # https://en.wikipedia.org/wiki/Universal_asynchronous_receiver-transmitter
+bit_field = "0.10.0"
 
 [dependencies.lazy_static]
 version = "1.0"

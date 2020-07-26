@@ -1,12 +1,13 @@
 #![no_std]
 #![no_main]
 
+#![feature(llvm_asm)]
 #![feature(custom_test_frameworks)]
 #![test_runner(my_rust_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
-use my_rust_os::println;
+use my_rust_os::{println, interrupts};
 
 extern crate rlibc;
 
@@ -23,8 +24,18 @@ fn panic(info: &PanicInfo) -> ! {
     my_rust_os::test_panic_handler(info)
 }
 
+fn divide_by_zero() {
+    unsafe {
+        llvm_asm!("mov dx, 0; div dx" ::: "ax", "dx" : "volatile", "intel")
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+    interrupts::init();
+
+    divide_by_zero();
+
     println!("Hello world{}", "!");
 
     #[cfg(test)]
