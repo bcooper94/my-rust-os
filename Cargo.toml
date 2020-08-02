@@ -29,3 +29,7 @@ features = ["spin_no_std"]
 [[test]]
 name = "should_panic"
 harness = false
+
+[[test]]
+name = "kernel_stack_overflow"
+harness = false

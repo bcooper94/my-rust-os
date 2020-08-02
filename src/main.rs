@@ -34,7 +34,7 @@ fn divide_by_zero() {
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     my_rust_os::init();
- 
+
     println!("Hello world{}", "!");
 
     #[cfg(test)]
