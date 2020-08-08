@@ -46,7 +46,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
     qemu::exit_qemu(qemu::QemuExitCode::Failed);
-    loop {}
+    hlt_loop();
 }
 
 pub fn init() {
@@ -56,13 +56,21 @@ pub fn init() {
     x86_64::instructions::interrupts::enable();
 }
 
+/// Loop over a HLT instruction to use less power while waiting for the next
+/// interrupt
+pub fn hlt_loop() -> ! {
+    loop {
+        x86_64::instructions::hlt();
+    }
+}
+
 /// Entry point for `cargo test`
 #[cfg(test)]
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
     init();
     test_main();
-    loop {}
+    hlt_loop();
 }
 
 #[cfg(test)]
