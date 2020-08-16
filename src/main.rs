@@ -8,6 +8,7 @@
 
 use core::panic::PanicInfo;
 use my_rust_os::println;
+use bootloader::{BootInfo, entry_point};
 
 extern crate rlibc;
 
@@ -31,11 +32,17 @@ fn divide_by_zero() {
     }
 }
 
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+entry_point!(kernel_main);
+
+fn kernel_main(boot_info: &'static BootInfo) -> ! {
     my_rust_os::init();
 
     println!("Hello world{}", "!");
+    println!("{:?}", boot_info);
+
+    use x86_64::registers::control::Cr3;
+    let (level_4_page_table, _) = Cr3::read();
+    println!("{:?}", level_4_page_table.start_address());
 
     #[cfg(test)]
     test_main();
