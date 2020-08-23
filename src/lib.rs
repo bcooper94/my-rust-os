@@ -4,12 +4,15 @@
 #![feature(custom_test_frameworks)]
 #![feature(llvm_asm)]
 #![feature(abi_x86_interrupt)]
+#![feature(alloc_error_handler)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 extern crate rlibc;
+extern crate alloc;
 
 use core::panic::PanicInfo;
+use alloc::alloc::Layout;
 
 pub mod serial;
 pub mod vga_buffer;
@@ -17,6 +20,7 @@ pub mod qemu;
 pub mod interrupts;
 pub mod gdt;
 pub mod memory;
+pub mod allocator;
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -63,6 +67,11 @@ pub fn hlt_loop() -> ! {
     loop {
         x86_64::instructions::hlt();
     }
+}
+
+#[alloc_error_handler]
+fn handle_alloc_error(layout: Layout) -> ! {
+    panic!("allocation error: {:?}", layout)
 }
 
 #[cfg(test)]
