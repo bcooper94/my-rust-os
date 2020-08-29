@@ -1,5 +1,3 @@
-use alloc::alloc::{GlobalAlloc, Layout};
-use core::ptr::null_mut;
 use x86_64::{
     structures::paging::{
         mapper::MapToError,
@@ -11,10 +9,13 @@ use x86_64::{
     },
     VirtAddr,
 };
-use linked_list_allocator::LockedHeap;
+
+pub mod bump;
+
+use bump::BumpAllocator;
 
 #[global_allocator]
-static ALLOCATOR: LockedHeap = LockedHeap::empty();
+static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new());
 
 pub const HEAP_START: usize = 0x_4444_4444_0000;
 pub const HEAP_SIZE: usize = 100 * 1024; // 100 KiB
@@ -45,4 +46,44 @@ pub fn init_heap(
     }
 
     Ok(())
+}
+
+/// Align the given address upwards to the given alignment
+/// 
+/// Requires `align` to be a power of 2
+fn align_up(addr: usize, align: usize) -> usize {
+    (addr + align - 1) & !(align - 1)
+}
+
+pub struct Locked<A> {
+    inner: spin::Mutex<A>,
+}
+
+impl<A> Locked<A> {
+    pub const fn new(inner: A) -> Self {
+        Locked {
+            inner: spin::Mutex::new(inner),
+        }
+    }
+
+    pub fn lock(&self) -> spin::MutexGuard<A> {
+        self.inner.lock()
+    }
+}
+
+mod test {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test_case]
+    fn align_up_already_aligned_address() {
+        assert_eq!(4000, align_up(4000, 8));
+        assert_eq!(5000, align_up(5000, 4));
+    }
+
+    #[test_case]
+    fn align_up_non_aligned_address() {
+        assert_eq!(1004, align_up(1001, 4));
+        assert_eq!(1002, align_up(1001, 2));
+    }
 }
