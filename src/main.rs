@@ -36,22 +36,11 @@ fn divide_by_zero() {
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use my_rust_os::memory::{self, BootInfoFrameAllocator};
-    use my_rust_os::allocator;
-    use x86_64::VirtAddr;
     use alloc::{rc::Rc, vec, vec::Vec, boxed::Box};
 
-    my_rust_os::init();
+    my_rust_os::init(&boot_info);
 
     println!("Hello world{}", "!");
-
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mem_mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe {
-        BootInfoFrameAllocator::init(&boot_info.memory_map)
-    };
-    allocator::init_heap(&mut mem_mapper, &mut frame_allocator)
-        .expect("Heap initialization failed");
 
     let test_box = Box::new("testing 1234");
     println!("Box at {:p}", test_box);
