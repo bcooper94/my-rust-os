@@ -145,15 +145,10 @@ pub fn _print(args: fmt::Arguments) {
     interrupts::without_interrupts(|| WRITER.lock().write_fmt(args).unwrap());
 }
 
+#[cfg(test)]
 mod tests {
-    // Rust complains about these imports even though they are needed
-    #[allow(unused_imports)]
     use super::*;
-
-    #[allow(unused_imports)]
     use core::fmt::Write;
-
-    #[allow(unused_imports)]
     use x86_64::instructions::interrupts;
 
     #[test_case]
