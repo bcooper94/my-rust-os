@@ -33,10 +33,20 @@ fn divide_by_zero() {
     }
 }
 
+async fn example() -> usize {
+    42
+}
+
+async fn call_example() {
+    let num = example().await;
+    println!("async number: {}", num);
+}
+
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use alloc::{rc::Rc, vec, vec::Vec, boxed::Box};
+    use my_rust_os::task::{Task, simple_executor::SimpleExecutor};
 
     my_rust_os::init(&boot_info);
 
@@ -56,6 +66,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     println!("current reference count is {}", Rc::strong_count(&cloned_reference));
     core::mem::drop(reference_counted);
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
+
+    let mut executor = SimpleExecutor::new();
+    executor.spawn(Task::new(call_example()));
+    executor.run();
 
     #[cfg(test)]
     test_main();
