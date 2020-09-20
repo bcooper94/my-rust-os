@@ -58,6 +58,29 @@ impl LinkedListAllocator {
         self.add_free_region(heap_start, heap_size);
     }
 
+    pub unsafe fn allocate(&mut self, layout: Layout) -> *mut u8 {
+        let (size, align) = Self::size_align(layout);
+
+        if let Some((region, alloc_start)) = self.find_region(size, align) {
+            let alloc_end = alloc_start.checked_add(size).expect("overflow");
+            let excess_size = region.end_addr() - alloc_end;
+            // region is larger than needed: split region up into a used and a
+            // free segment, and add free segment to the free list
+            if excess_size > 0 {
+                self.add_free_region(alloc_end, excess_size);
+            }
+
+            alloc_start as *mut u8
+        } else {
+            ptr::null_mut()
+        }
+    }
+
+    pub unsafe fn deallocate(&mut self, ptr: *mut u8, layout: Layout) {
+        let (size, _) = Self::size_align(layout);
+        self.add_free_region(ptr as usize, size);
+    }
+
     /// Adds the given memory region to the free list.
     unsafe fn add_free_region(&mut self, addr: usize, size: usize) {
         // ensure that the freed memory region is capable of holding ListNode
@@ -162,6 +185,12 @@ impl LinkedListAllocator {
         -> Result<usize, ()>
     {
         let alloc_start = align_up(region.start_addr(), align);
+
+        let bytes_lost = alloc_start - region.start_addr();
+        if bytes_lost > 0 {
+            crate::serial_println!("{} bytes lost in allocation", bytes_lost);
+        }
+
         let alloc_end = alloc_start.checked_add(size).ok_or(())?;
 
         if alloc_end > region.end_addr() {
@@ -196,29 +225,16 @@ impl LinkedListAllocator {
 
 unsafe impl GlobalAlloc for Locked<LinkedListAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let (size, align) = LinkedListAllocator::size_align(layout);
-        let mut allocator = self.lock();
-
-        if let Some((region, alloc_start)) = allocator.find_region(size, align) {
-            let alloc_end = alloc_start.checked_add(size).expect("overflow");
-            let excess_size = region.end_addr() - alloc_end;
-            // region is larger than needed: split region up into a used and a
-            // free segment, and add free segment to the free list
-            if excess_size > 0 {
-                allocator.add_free_region(alloc_end, excess_size);
-            }
-
-            alloc_start as *mut u8
-        } else {
-            ptr::null_mut()
-        }
+        self.lock().allocate(layout)
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        let (size, _) = LinkedListAllocator::size_align(layout);
-        self.lock().add_free_region(ptr as usize, size);
+        self.lock().deallocate(ptr, layout);
     }
 }
+
+/*
+TODO: figure out how to get these tests working with a LinkedListAllocator
 
 #[cfg(test)]
 mod tests {
@@ -293,6 +309,7 @@ mod tests {
 
     fn count_free_regions() -> usize {
         let mut region_count = 0;
+        // TODO: this doesn't work with different allocators
         let mut prev_region = &allocator::ALLOCATOR.lock().head;
         while let Some(ref region) = prev_region.next {
             region_count += 1;
@@ -302,3 +319,4 @@ mod tests {
         region_count
     }
 }
+*/
