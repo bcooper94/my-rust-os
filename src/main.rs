@@ -9,6 +9,7 @@
 use core::panic::PanicInfo;
 use my_rust_os::println;
 use bootloader::{BootInfo, entry_point};
+use my_rust_os::task::{keyboard, Task, simple_executor::SimpleExecutor};
 
 extern crate rlibc;
 extern crate alloc;
@@ -46,7 +47,6 @@ entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use alloc::{rc::Rc, vec, vec::Vec, boxed::Box};
-    use my_rust_os::task::{Task, simple_executor::SimpleExecutor};
 
     my_rust_os::init(&boot_info);
 
@@ -69,6 +69,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     let mut executor = SimpleExecutor::new();
     executor.spawn(Task::new(call_example()));
+    executor.spawn(Task::new(keyboard::print_keypresses()));
     executor.run();
 
     #[cfg(test)]
