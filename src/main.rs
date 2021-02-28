@@ -9,7 +9,7 @@
 use core::panic::PanicInfo;
 use my_rust_os::println;
 use bootloader::{BootInfo, entry_point};
-use my_rust_os::task::{keyboard, Task, simple_executor::SimpleExecutor};
+use my_rust_os::task::{keyboard, Task, executor::Executor};
 
 extern crate rlibc;
 extern crate alloc;
@@ -67,9 +67,11 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     core::mem::drop(reference_counted);
     println!("reference count is {} now", Rc::strong_count(&cloned_reference));
 
-    let mut executor = SimpleExecutor::new();
+    let mut executor = Executor::new();
     executor.spawn(Task::new(call_example()));
     executor.spawn(Task::new(keyboard::print_keypresses()));
+
+    #[cfg(not(test))]
     executor.run();
 
     #[cfg(test)]
