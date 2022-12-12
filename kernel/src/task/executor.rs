@@ -37,7 +37,7 @@ impl Executor {
     fn sleep_if_idle(&self) {
         interrupts::disable();
         if self.task_queue.is_empty() {
-            interrupts::enable_interrupts_and_hlt();
+            interrupts::enable_and_hlt();
         } else {
             interrupts::enable();
         }
@@ -64,7 +64,7 @@ impl Executor {
                 Poll::Ready(()) => {
                     tasks.remove(&task_id);
                     waker_cache.remove(&task_id);
-                },
+                }
                 Poll::Pending => {}
             }
         }

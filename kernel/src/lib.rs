@@ -1,31 +1,40 @@
 #![no_std]
-
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
-#![feature(llvm_asm)]
+// #![feature(llvm_asm)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
-#![feature(const_fn)]
-#![feature(const_in_array_repeat_expressions)]
-#![feature(wake_trait)]
+#![feature(const_mut_refs)]
+// #![feature(const_fn)]
+// #![feature(const_in_array_repeat_expressions)]
+// #![feature(wake_trait)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-extern crate rlibc;
 extern crate alloc;
+extern crate rlibc;
 
-use core::panic::PanicInfo;
 use alloc::alloc::Layout;
-use bootloader::BootInfo;
+use bootloader_api::{config::Mapping, BootInfo, BootloaderConfig};
+use bootloader_x86_64_common::logger::LockedLogger;
+use core::panic::PanicInfo;
+use log::{Level, Log, Record, RecordBuilder};
+use x86_64::structures::paging::frame;
 
-pub mod serial;
-pub mod vga_buffer;
-pub mod qemu;
-pub mod interrupts;
-pub mod gdt;
-pub mod memory;
+pub static BOOTLOADER_CONFIG: BootloaderConfig = {
+    let mut config = BootloaderConfig::new_default();
+    config.mappings.physical_memory = Some(Mapping::Dynamic);
+    config
+};
+
 pub mod allocator;
+pub mod gdt;
+pub mod interrupts;
+// pub mod memory;
+pub mod qemu;
+pub mod serial;
 pub mod task;
+pub mod vga_buffer;
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -59,27 +68,26 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
     hlt_loop();
 }
 
-pub fn init(boot_info: &'static BootInfo) {
+pub fn init(boot_info: &'static mut BootInfo) {
     gdt::init();
+    vga_buffer::init(boot_info.framebuffer.as_mut().unwrap());
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
 
-    init_heap(&boot_info);
+    // init_heap(&boot_info);
 }
 
-fn init_heap(boot_info: &'static BootInfo) {
-    use memory::BootInfoFrameAllocator;
-    use x86_64::VirtAddr;
+// fn init_heap(boot_info: &'static BootInfo) {
+//     use memory::BootInfoFrameAllocator;
+//     use x86_64::VirtAddr;
 
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mem_mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe {
-        BootInfoFrameAllocator::init(&boot_info.memory_map)
-    };
-    allocator::init_heap(&mut mem_mapper, &mut frame_allocator)
-        .expect("Heap initialization failed");
-}
+//     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset.into_option().unwrap());
+//     let mut mem_mapper = unsafe { memory::init(phys_mem_offset) };
+//     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+//     allocator::init_heap(&mut mem_mapper, &mut frame_allocator)
+//         .expect("Heap initialization failed");
+// }
 
 /// Loop over a HLT instruction to use less power while waiting for the next
 /// interrupt
@@ -95,15 +103,15 @@ fn handle_alloc_error(layout: Layout) -> ! {
 }
 
 #[cfg(test)]
-use bootloader::entry_point;
+use bootloader_api::entry_point;
 
 #[cfg(test)]
-entry_point!(test_kernel_main);
+entry_point!(test_kernel_main, config = &BOOTLOADER_CONFIG);
 
 /// Entry point for `cargo test`
 #[cfg(test)]
-fn test_kernel_main(boot_info: &'static BootInfo) -> ! {
-    init(&boot_info);
+fn test_kernel_main(boot_info: &'static mut BootInfo) -> ! {
+    init(boot_info);
     test_main();
     hlt_loop();
 }

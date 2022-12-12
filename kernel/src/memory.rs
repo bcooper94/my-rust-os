@@ -1,15 +1,8 @@
+// use bootloader_api::bootinfo::{MemoryMap, MemoryRegionType};
 use x86_64::{
-    structures::paging::{
-        PhysFrame,
-        Size4KiB,
-        FrameAllocator,
-        OffsetPageTable,
-        PageTable,
-    },
-    VirtAddr,
-    PhysAddr,
+    structures::paging::{FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB},
+    PhysAddr, VirtAddr,
 };
-use bootloader::bootinfo::{MemoryMap, MemoryRegionType};
 
 /// Initialize a new OffsetPageTable.
 ///
@@ -28,9 +21,7 @@ pub unsafe fn init(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static>
 /// complete physical memory is mapped to virtual memory at the passed
 /// `physical_memory_offset`. Also, this function must be only called once
 /// to avoid aliasing `&mut` references (which is undefined behavior).
-unsafe fn active_level_4_table(physical_memory_offset: VirtAddr)
-    -> &'static mut PageTable
-{
+unsafe fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut PageTable {
     use x86_64::registers::control::Cr3;
 
     let (level_4_table_frame, _) = Cr3::read();
@@ -65,13 +56,11 @@ impl BootInfoFrameAllocator {
     fn usable_frames(&self) -> impl Iterator<Item = PhysFrame> {
         // get usable regions from memory map
         let regions = self.memory_map.iter();
-        let usable_regions = regions.filter(
-            |region| region.region_type == MemoryRegionType::Usable
-        );
+        let usable_regions =
+            regions.filter(|region| region.region_type == MemoryRegionType::Usable);
         // map each region to its address range
-        let addr_ranges = usable_regions.map(
-            |region| region.range.start_addr()..region.range.end_addr()
-        );
+        let addr_ranges =
+            usable_regions.map(|region| region.range.start_addr()..region.range.end_addr());
         // transform to an iterator over frame start addresses
         let frame_addresses = addr_ranges.flat_map(|region| region.step_by(4096));
         frame_addresses.map(|addr| PhysFrame::containing_address(PhysAddr::new(addr)))
