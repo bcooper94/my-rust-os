@@ -1,20 +1,22 @@
-use conquer_once::spin::OnceCell;
-use crossbeam_queue::ArrayQueue;
-use core::{pin::Pin, task::{Poll, Context}};
-use futures_util::{task::AtomicWaker, stream::{Stream, StreamExt}};
-use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 use crate::{print, println};
+use conquer_once::spin::OnceCell;
+use core::{
+    pin::Pin,
+    task::{Context, Poll},
+};
+use crossbeam_queue::ArrayQueue;
+use futures_util::{
+    stream::{Stream, StreamExt},
+    task::AtomicWaker,
+};
+use pc_keyboard::{layouts, DecodedKey, HandleControl, Keyboard, ScancodeSet1};
 
 static SCANCODE_QUEUE: OnceCell<ArrayQueue<u8>> = OnceCell::uninit();
 static WAKER: AtomicWaker = AtomicWaker::new();
 
 pub async fn print_keypresses() {
     let mut scancodes = ScancodeStream::new();
-    let mut keyboard = Keyboard::new(
-        layouts::Us104Key,
-        ScancodeSet1,
-        HandleControl::Ignore
-    );
+    let mut keyboard = Keyboard::new(layouts::Us104Key, ScancodeSet1, HandleControl::Ignore);
 
     while let Some(scancode) = scancodes.next().await {
         if let Ok(Some(key_event)) = keyboard.add_byte(scancode) {
@@ -29,7 +31,7 @@ pub async fn print_keypresses() {
 }
 
 /// Called by the keyboard interrupt handler
-/// 
+///
 /// Must not block or allocate to heap.
 pub(crate) fn add_scancode(scancode: u8) {
     if let Ok(queue) = SCANCODE_QUEUE.try_get() {
@@ -50,11 +52,10 @@ pub struct ScancodeStream {
 
 impl ScancodeStream {
     pub fn new() -> Self {
-        SCANCODE_QUEUE.try_init_once(|| ArrayQueue::<u8>::new(100))
+        SCANCODE_QUEUE
+            .try_init_once(|| ArrayQueue::<u8>::new(100))
             .expect("ScancodeStream::new should only be called once");
-        ScancodeStream {
-            _private: (),
-        }
+        ScancodeStream { _private: () }
     }
 }
 
@@ -74,7 +75,7 @@ impl Stream for ScancodeStream {
             Ok(scancode) => {
                 WAKER.take();
                 Poll::Ready(Some(scancode))
-            },
+            }
             Err(crossbeam_queue::PopError) => Poll::Pending,
         }
     }

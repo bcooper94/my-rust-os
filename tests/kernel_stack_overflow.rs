@@ -1,14 +1,13 @@
 #![no_std]
 #![no_main]
-
 #![feature(abi_x86_interrupt)]
 
 use core::panic::PanicInfo;
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
-use my_rust_os::{serial_print, serial_println};
 use my_rust_os::qemu::{exit_qemu, QemuExitCode};
+use my_rust_os::{serial_print, serial_println};
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
@@ -40,8 +39,8 @@ lazy_static! {
 }
 
 extern "x86-interrupt" fn test_double_fault_handler(
-    _stack_frame: &mut InterruptStackFrame,
-    _error_code: u64
+    _stack_frame: InterruptStackFrame,
+    _error_code: u64,
 ) -> ! {
     serial_println!("[ok]");
     exit_qemu(QemuExitCode::Success);

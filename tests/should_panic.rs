@@ -1,13 +1,12 @@
 #![no_std]
 #![no_main]
-
 #![feature(custom_test_frameworks)]
 #![test_runner(test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
+use my_rust_os::qemu::{exit_qemu, QemuExitCode};
 use my_rust_os::{serial_print, serial_println};
-use my_rust_os::qemu::{QemuExitCode, exit_qemu};
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {

@@ -10,10 +10,8 @@ struct ListNode {
 
 impl ListNode {
     const fn new(size: usize) -> Self {
-        ListNode {
-            size,
-            next: None,
-        }
+        const EMPTY: Option<&'static mut ListNode> = None;
+        ListNode { size, next: EMPTY }
     }
 
     fn start_addr(&self) -> usize {
@@ -26,12 +24,14 @@ impl ListNode {
 
     /// Merge this ListNode with `self.next`, setting `self.next` to point to
     /// the following ListNode.
-    /// 
+    ///
     /// Panics if combining the size of this ListNode with `self.next` results
     /// in an integer overflow.
     fn merge_with_next(&mut self) {
         let next = self.next.as_mut().unwrap();
-        self.size = self.size.checked_add(next.size)
+        self.size = self
+            .size
+            .checked_add(next.size)
             .expect("Overflow while merging ListNode with next ListNode");
         self.next = next.next.take();
     }
@@ -104,9 +104,7 @@ impl LinkedListAllocator {
 
         let mut was_prev_region_merged = false;
         if prev_region.size > 0 {
-            was_prev_region_merged = Self::try_merge_region_with_next(
-                &mut prev_region
-            );
+            was_prev_region_merged = Self::try_merge_region_with_next(&mut prev_region);
         }
 
         // If prev_region was merged with prev_region.next, we need to try to
@@ -152,11 +150,9 @@ impl LinkedListAllocator {
 
     /// Looks for a free region of the given size and alignment, and removes it
     /// from the list.
-    /// 
+    ///
     /// Returns a tuple of the list node and the start address of the allocation.
-    fn find_region(&mut self, size: usize, align: usize)
-        -> Option<(&'static mut ListNode, usize)>
-    {
+    fn find_region(&mut self, size: usize, align: usize) -> Option<(&'static mut ListNode, usize)> {
         let mut current = &mut self.head;
 
         // look for a large enough memory region in the linked list
@@ -179,11 +175,9 @@ impl LinkedListAllocator {
 
     /// Try to use the given region for an allocation with a given size and
     /// alignment.
-    /// 
+    ///
     /// Returns the allocation start address on success.
-    fn alloc_from_region(region: &ListNode, size: usize, align: usize)
-        -> Result<usize, ()>
-    {
+    fn alloc_from_region(region: &ListNode, size: usize, align: usize) -> Result<usize, ()> {
         let alloc_start = align_up(region.start_addr(), align);
 
         let bytes_lost = alloc_start - region.start_addr();
@@ -212,10 +206,11 @@ impl LinkedListAllocator {
 
     /// Adjust the given layout so that the resulting allocated memory region
     /// is also capable of storing a `ListNode`.
-    /// 
+    ///
     /// Returns the adjusted size and layout as a `(size, layout)` tuple.
     fn size_align(layout: Layout) -> (usize, usize) {
-        let layout = layout.align_to(mem::size_of::<ListNode>())
+        let layout = layout
+            .align_to(mem::size_of::<ListNode>())
             .expect("alignment adjustment failed")
             .pad_to_align();
         let size = layout.size().max(mem::size_of::<ListNode>());

@@ -1,18 +1,16 @@
 #![no_std]
 #![no_main]
-
-#![feature(llvm_asm)]
 #![feature(custom_test_frameworks)]
 #![test_runner(my_rust_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
+use bootloader::{entry_point, BootInfo};
 use core::panic::PanicInfo;
 use my_rust_os::println;
-use bootloader::{BootInfo, entry_point};
-use my_rust_os::task::{keyboard, Task, executor::Executor};
+use my_rust_os::task::{executor::Executor, keyboard, Task};
 
-extern crate rlibc;
 extern crate alloc;
+extern crate rlibc;
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -29,9 +27,7 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[allow(dead_code)]
 fn divide_by_zero() {
-    unsafe {
-        llvm_asm!("mov dx, 0; div dx" ::: "ax", "dx" : "volatile", "intel")
-    }
+    unsafe { core::arch::asm!("mov dx, 0; div dx", out("ax") _, out("dx") _) }
 }
 
 async fn example() -> usize {
@@ -46,7 +42,7 @@ async fn call_example() {
 entry_point!(kernel_main);
 
 fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    use alloc::{rc::Rc, vec, vec::Vec, boxed::Box};
+    use alloc::{boxed::Box, rc::Rc, vec, vec::Vec};
 
     my_rust_os::init(&boot_info);
 
@@ -63,9 +59,15 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     let reference_counted = Rc::new(vec![1, 2, 3]);
     let cloned_reference = reference_counted.clone();
-    println!("current reference count is {}", Rc::strong_count(&cloned_reference));
+    println!(
+        "current reference count is {}",
+        Rc::strong_count(&cloned_reference)
+    );
     core::mem::drop(reference_counted);
-    println!("reference count is {} now", Rc::strong_count(&cloned_reference));
+    println!(
+        "reference count is {} now",
+        Rc::strong_count(&cloned_reference)
+    );
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(call_example()));
@@ -89,4 +91,3 @@ mod tests {
         assert_eq!(1, 1);
     }
 }
-

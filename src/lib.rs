@@ -1,31 +1,27 @@
 #![no_std]
-
 #![cfg_attr(test, no_main)]
 #![feature(custom_test_frameworks)]
-#![feature(llvm_asm)]
 #![feature(abi_x86_interrupt)]
 #![feature(alloc_error_handler)]
-#![feature(const_fn)]
-#![feature(const_in_array_repeat_expressions)]
-#![feature(wake_trait)]
+#![feature(const_mut_refs)]
 #![test_runner(crate::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-extern crate rlibc;
 extern crate alloc;
+extern crate rlibc;
 
-use core::panic::PanicInfo;
 use alloc::alloc::Layout;
 use bootloader::BootInfo;
+use core::panic::PanicInfo;
 
-pub mod serial;
-pub mod vga_buffer;
-pub mod qemu;
-pub mod interrupts;
-pub mod gdt;
-pub mod memory;
 pub mod allocator;
+pub mod gdt;
+pub mod interrupts;
+pub mod memory;
+pub mod qemu;
+pub mod serial;
 pub mod task;
+pub mod vga_buffer;
 
 pub trait Testable {
     fn run(&self) -> ();
@@ -74,9 +70,7 @@ fn init_heap(boot_info: &'static BootInfo) {
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mem_mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe {
-        BootInfoFrameAllocator::init(&boot_info.memory_map)
-    };
+    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
     allocator::init_heap(&mut mem_mapper, &mut frame_allocator)
         .expect("Heap initialization failed");
 }

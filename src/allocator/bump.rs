@@ -51,7 +51,7 @@ unsafe impl GlobalAlloc for Locked<BumpAllocator> {
             alloc_start as *mut u8
         }
     }
-    
+
     unsafe fn dealloc(&self, _ptr: *mut u8, _layout: Layout) {
         let mut bump = self.lock();
 
