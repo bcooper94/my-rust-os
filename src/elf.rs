@@ -19,21 +19,6 @@ pub enum ElfParseError {
     MultipleProgramHeaderEntriesFound,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum ElfClass {
-    Elf32,
-    Elf64,
-}
-
-pub trait Class {
-    type Size;
-    type ByteSize;
-
-    const VALUE: ElfClass;
-
-    fn compute_size(&self, bytes: &Self::ByteSize) -> Self::Size;
-}
-
 #[derive(Debug, PartialEq)]
 enum InstructionSet {
     NoSpecific,
@@ -153,7 +138,6 @@ struct Elf32SectionHeaderSummary {
 
 #[derive(Debug, PartialEq)]
 struct Elf32Header {
-    class: ElfClass,
     endianness: Endian,
     header_version: u8,
     os_abi: u8,
@@ -195,7 +179,6 @@ struct Elf64SectionHeaderSummary {
 
 #[derive(Debug, PartialEq)]
 struct Elf64Header {
-    class: ElfClass,
     endianness: Endian,
     header_version: u8,
     os_abi: u8,
@@ -237,7 +220,6 @@ impl<'a> Elf64File<'a> {
         let program_entry_position = endianness.get_u64(&file_bytes[24..=31].try_into().unwrap());
 
         Ok(Elf64Header {
-            class: ElfClass::Elf64,
             endianness,
             header_version: file_bytes[6],
             os_abi: file_bytes[7],
@@ -279,7 +261,6 @@ impl<'a> Elf64File<'a> {
             .and_then(|header_summary| {
                 Some(Elf64ProgramHeaderIterator::new(
                     self.file_bytes,
-                    &self.header.class,
                     &self.header.endianness,
                     header_summary,
                 ))
@@ -319,7 +300,6 @@ impl<'a> Elf32File<'a> {
         let program_entry_position = endianness.get_u32(&file_bytes[24..=27].try_into().unwrap());
 
         Ok(Elf32Header {
-            class: ElfClass::Elf32,
             endianness,
             header_version: file_bytes[6],
             os_abi: file_bytes[7],
@@ -361,7 +341,6 @@ impl<'a> Elf32File<'a> {
             .and_then(|header_summary| {
                 Some(Elf32ProgramHeaderIterator::new(
                     self.file_bytes,
-                    &self.header.class,
                     &self.header.endianness,
                     header_summary,
                 ))
@@ -431,7 +410,6 @@ mod tests {
         let expected_elf = Elf64File {
             file_bytes,
             header: Elf64Header {
-                class: ElfClass::Elf64,
                 endianness: Endian::Little,
                 header_version: 1,
                 os_abi: 0,
@@ -461,7 +439,6 @@ mod tests {
         let expected_elf = Elf64File {
             file_bytes,
             header: Elf64Header {
-                class: ElfClass::Elf64,
                 endianness: Endian::Little,
                 header_version: 1,
                 os_abi: 0,
@@ -685,7 +662,6 @@ mod tests {
         let expected_elf = Elf32File {
             file_bytes,
             header: Elf32Header {
-                class: ElfClass::Elf32,
                 endianness: Endian::Little,
                 header_version: 1,
                 os_abi: 0,
