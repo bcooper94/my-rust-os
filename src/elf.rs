@@ -1,6 +1,6 @@
 use core::{convert::TryInto, fmt::Debug};
 
-use self::program_header::ProgramHeaderIterator;
+use self::program_header::{Elf32ProgramHeaderIterator, Elf64ProgramHeaderIterator};
 
 pub mod program_header;
 
@@ -126,6 +126,48 @@ impl Endian {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct Elf32ProgramHeaderSummary {
+    table_position: u32,
+    entry_size: u16,
+    entry_count: u16,
+}
+
+impl Elf32ProgramHeaderSummary {
+    // TODO: is usize correct?
+    fn byte_offset(&self, entry_index: u16) -> Option<usize> {
+        if entry_index < self.entry_count {
+            Some((self.table_position + (self.entry_size as u32) * (entry_index as u32)) as usize)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+struct Elf32SectionHeaderSummary {
+    table_position: u32,
+    entry_size: u16,
+    entry_count: u16,
+    names_index: u16,
+}
+
+#[derive(Debug, PartialEq)]
+struct Elf32Header {
+    class: ElfClass,
+    endianness: Endian,
+    header_version: u8,
+    os_abi: u8,
+    elf_type: ElfType,
+    instruction_set: InstructionSet,
+    elf_version: u32,
+    program_entry_position: u32,
+
+    /// Required for elf_type Executable, but not for Relocatable
+    program_header_summary: Option<Elf32ProgramHeaderSummary>,
+    section_header_summary: Elf32SectionHeaderSummary,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Elf64ProgramHeaderSummary {
     table_position: u64,
     entry_size: u16,
@@ -160,9 +202,8 @@ struct Elf64Header {
     elf_type: ElfType,
     instruction_set: InstructionSet,
     elf_version: u32,
-
-    // TODO: Figure out how to configure these to either by u32 or u64 for 32-bit and 64-bit ELFs
     program_entry_position: u64,
+
     /// Required for elf_type Executable, but not for Relocatable
     program_header_summary: Option<Elf64ProgramHeaderSummary>,
     section_header_summary: Elf64SectionHeaderSummary,
@@ -231,12 +272,12 @@ impl<'a> Elf64File<'a> {
         }
     }
 
-    pub fn program_headers(&self) -> Option<ProgramHeaderIterator> {
+    pub fn program_headers(&self) -> Option<Elf64ProgramHeaderIterator> {
         self.header
             .program_header_summary
             .as_ref()
             .and_then(|header_summary| {
-                Some(ProgramHeaderIterator::new(
+                Some(Elf64ProgramHeaderIterator::new(
                     self.file_bytes,
                     &self.header.class,
                     &self.header.endianness,
@@ -255,7 +296,7 @@ impl<'a> Debug for Elf64File<'a> {
 #[derive(PartialEq)]
 pub struct Elf32File<'a> {
     file_bytes: &'a [u8],
-    header: Elf64Header,
+    header: Elf32Header,
 }
 
 impl<'a> Elf32File<'a> {
@@ -269,16 +310,15 @@ impl<'a> Elf32File<'a> {
         Ok(Self { file_bytes, header })
     }
 
-    fn parse_header(file_bytes: &'a [u8]) -> Result<Elf64Header, ElfParseError> {
+    fn parse_header(file_bytes: &'a [u8]) -> Result<Elf32Header, ElfParseError> {
         let endianness = Endian::from_byte(file_bytes[5])?;
         let instruction_set =
             InstructionSet::try_from(endianness.get_u16(&file_bytes[18..=19].try_into().unwrap()))?;
         let elf_type =
             ElfType::try_from(endianness.get_u16(&file_bytes[16..=17].try_into().unwrap()))?;
-        let program_entry_position =
-            endianness.get_u32(&file_bytes[24..=27].try_into().unwrap()) as u64;
+        let program_entry_position = endianness.get_u32(&file_bytes[24..=27].try_into().unwrap());
 
-        Ok(Elf64Header {
+        Ok(Elf32Header {
             class: ElfClass::Elf32,
             endianness,
             header_version: file_bytes[6],
@@ -288,8 +328,8 @@ impl<'a> Elf32File<'a> {
             elf_version: endianness.get_u32(&file_bytes[20..=23].try_into().unwrap()),
             program_entry_position,
             program_header_summary: Self::parse_program_header_summary(file_bytes, &endianness),
-            section_header_summary: Elf64SectionHeaderSummary {
-                table_position: endianness.get_u32(&file_bytes[32..=35].try_into().unwrap()) as u64,
+            section_header_summary: Elf32SectionHeaderSummary {
+                table_position: endianness.get_u32(&file_bytes[32..=35].try_into().unwrap()),
                 entry_size: endianness.get_u16(&file_bytes[46..=47].try_into().unwrap()),
                 entry_count: endianness.get_u16(&file_bytes[48..=49].try_into().unwrap()),
                 names_index: endianness.get_u16(&file_bytes[50..=51].try_into().unwrap()),
@@ -300,13 +340,13 @@ impl<'a> Elf32File<'a> {
     fn parse_program_header_summary(
         file_bytes: &'a [u8],
         endianness: &Endian,
-    ) -> Option<Elf64ProgramHeaderSummary> {
-        let table_position = endianness.get_u32(&file_bytes[28..=31].try_into().unwrap()) as u64;
+    ) -> Option<Elf32ProgramHeaderSummary> {
+        let table_position = endianness.get_u32(&file_bytes[28..=31].try_into().unwrap());
 
         if table_position == 0 {
             None
         } else {
-            Some(Elf64ProgramHeaderSummary {
+            Some(Elf32ProgramHeaderSummary {
                 table_position,
                 entry_size: endianness.get_u16(&file_bytes[42..=43].try_into().unwrap()),
                 entry_count: endianness.get_u16(&file_bytes[44..=45].try_into().unwrap()),
@@ -314,12 +354,12 @@ impl<'a> Elf32File<'a> {
         }
     }
 
-    pub fn program_headers(&self) -> Option<ProgramHeaderIterator> {
+    pub fn program_headers(&self) -> Option<Elf32ProgramHeaderIterator> {
         self.header
             .program_header_summary
             .as_ref()
             .and_then(|header_summary| {
-                Some(ProgramHeaderIterator::new(
+                Some(Elf32ProgramHeaderIterator::new(
                     self.file_bytes,
                     &self.header.class,
                     &self.header.endianness,
@@ -447,7 +487,7 @@ mod tests {
         assert_eq!(11, elf_file.program_headers().unwrap().count());
 
         let mut headers = elf_file.program_headers().unwrap();
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::ProgramHeader,
             ProgramHeaderFlags::new(false, false, true),
             0x40,
@@ -464,7 +504,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Interpret,
             ProgramHeaderFlags::new(false, false, true),
             0x2A8,
@@ -481,7 +521,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(false, false, true),
             0,
@@ -498,7 +538,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(true, false, true),
             0x1000,
@@ -515,7 +555,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(false, false, true),
             0x2000,
@@ -532,7 +572,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(false, true, true),
             0x2E00,
@@ -549,7 +589,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Dynamic,
             ProgramHeaderFlags::new(false, true, true),
             0x2E10,
@@ -566,7 +606,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::Note,
             ProgramHeaderFlags::new(false, false, true),
             0x2C4,
@@ -583,7 +623,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::ProcessorSpecific(1685382480),
             ProgramHeaderFlags::new(false, false, true),
             0x2010,
@@ -600,7 +640,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::ProcessorSpecific(1685382481),
             ProgramHeaderFlags::new(false, true, true),
             0,
@@ -617,7 +657,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf64ProgramHeader::new(
             ProgramSegmentType::ProcessorSpecific(1685382482),
             ProgramHeaderFlags::new(false, false, true),
             0x2E00,
@@ -644,7 +684,7 @@ mod tests {
             Elf32File::from_bytes(file_bytes).expect("The file should be correctly parsed");
         let expected_elf = Elf32File {
             file_bytes,
-            header: Elf64Header {
+            header: Elf32Header {
                 class: ElfClass::Elf32,
                 endianness: Endian::Little,
                 header_version: 1,
@@ -653,12 +693,12 @@ mod tests {
                 instruction_set: InstructionSet::NoSpecific,
                 elf_version: 1,
                 program_entry_position: 0x401040,
-                program_header_summary: Some(Elf64ProgramHeaderSummary {
+                program_header_summary: Some(Elf32ProgramHeaderSummary {
                     table_position: 52,
                     entry_size: 32,
                     entry_count: 10,
                 }),
-                section_header_summary: Elf64SectionHeaderSummary {
+                section_header_summary: Elf32SectionHeaderSummary {
                     table_position: 13624,
                     entry_size: 40,
                     entry_count: 29,
@@ -671,7 +711,7 @@ mod tests {
         assert_eq!(10, elf_file.program_headers().unwrap().count());
 
         let mut headers = elf_file.program_headers().unwrap();
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::ProgramHeader,
             ProgramHeaderFlags::new(false, false, true),
             0x34,
@@ -688,7 +728,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Interpret,
             ProgramHeaderFlags::new(false, false, true),
             0x2A8,
@@ -705,7 +745,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(false, false, true),
             0,
@@ -722,7 +762,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(true, false, true),
             0x1000,
@@ -739,7 +779,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(false, false, true),
             0x2000,
@@ -756,7 +796,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Load,
             ProgramHeaderFlags::new(false, true, true),
             0x2E00,
@@ -773,7 +813,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Dynamic,
             ProgramHeaderFlags::new(false, true, true),
             0x2E10,
@@ -790,7 +830,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::Note,
             ProgramHeaderFlags::new(false, false, true),
             0x2C4,
@@ -807,7 +847,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::ProcessorSpecific(1685382480),
             ProgramHeaderFlags::new(false, false, true),
             0x2010,
@@ -824,7 +864,7 @@ mod tests {
                 .expect("Failed to parse program header")
         );
 
-        let expected_program_header = ElfProgramHeader::new(
+        let expected_program_header = Elf32ProgramHeader::new(
             ProgramSegmentType::ProcessorSpecific(1685382481),
             ProgramHeaderFlags::new(false, true, true),
             0,
