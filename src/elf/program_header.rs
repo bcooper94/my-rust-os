@@ -1,6 +1,6 @@
 use core::convert::TryInto;
 
-use super::{ElfClass, ElfParseError, Endian, ProgramHeaderSummary};
+use super::{Elf64ProgramHeaderSummary, ElfClass, ElfParseError, Endian};
 
 #[derive(Debug, PartialEq)]
 pub enum ProgramSegmentType {
@@ -129,7 +129,7 @@ pub struct ProgramHeaderIterator<'a> {
     data: &'a [u8],
     class: &'a ElfClass,
     endianness: &'a Endian,
-    header_summary: &'a ProgramHeaderSummary,
+    header_summary: &'a Elf64ProgramHeaderSummary,
     program_header_entry_seen: bool,
 }
 
@@ -138,7 +138,7 @@ impl<'a> ProgramHeaderIterator<'a> {
         data: &'a [u8],
         class: &'a ElfClass,
         endianness: &'a Endian,
-        header_summary: &'a ProgramHeaderSummary,
+        header_summary: &'a Elf64ProgramHeaderSummary,
     ) -> Self {
         Self {
             current_index: 0,
