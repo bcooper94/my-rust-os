@@ -324,65 +324,26 @@ impl<'a> SectionHeaderIterator<'a> {
             .section_header_summary
             .byte_offset(self.current_index)
             .unwrap();
-        let name_index = self
-            .endianness
-            .get_u32(self.data[byte_offset..=byte_offset + 3].try_into().unwrap());
-        let header_type = SectionHeaderType::try_from(
-            self.endianness.get_u32(
-                self.data[byte_offset + 4..=byte_offset + 7]
-                    .try_into()
-                    .unwrap(),
-            ),
-        )?;
-        let flags = self.endianness.get_u64(
-            self.data[byte_offset + 8..=byte_offset + 15]
-                .try_into()
-                .unwrap(),
-        );
-        let address = match self.endianness.get_u64(
-            self.data[byte_offset + 16..=byte_offset + 23]
-                .try_into()
-                .unwrap(),
-        ) {
+        let name_index = self.endianness.get_u32(&self.data[byte_offset..])?;
+        let header_type =
+            SectionHeaderType::try_from(self.endianness.get_u32(&self.data[byte_offset + 4..])?)?;
+        let flags = self.endianness.get_u64(&self.data[byte_offset + 8..])?;
+        let address = match self.endianness.get_u64(&self.data[byte_offset + 16..])? {
             0 => None,
             value => Some(value),
         };
-        let section_file_offset = self.endianness.get_u64(
-            self.data[byte_offset + 24..=byte_offset + 31]
-                .try_into()
-                .unwrap(),
-        );
-        let section_size = self.endianness.get_u64(
-            self.data[byte_offset + 32..=byte_offset + 39]
-                .try_into()
-                .unwrap(),
-        );
-        let section_link_index = match self.endianness.get_u32(
-            self.data[byte_offset + 40..=byte_offset + 43]
-                .try_into()
-                .unwrap(),
-        ) {
+        let section_file_offset = self.endianness.get_u64(&self.data[byte_offset + 24..])?;
+        let section_size = self.endianness.get_u64(&self.data[byte_offset + 32..])?;
+        let section_link_index = match self.endianness.get_u32(&self.data[byte_offset + 40..])? {
             0 => None,
             value => Some(value),
         };
-        let info = match self.endianness.get_u32(
-            self.data[byte_offset + 44..=byte_offset + 47]
-                .try_into()
-                .unwrap(),
-        ) {
+        let info = match self.endianness.get_u32(&self.data[byte_offset + 44..])? {
             0 => None,
             value => Some(value),
         };
-        let address_alignment = self.endianness.get_u64(
-            self.data[byte_offset + 48..=byte_offset + 55]
-                .try_into()
-                .unwrap(),
-        );
-        let section_entry_size = match self.endianness.get_u64(
-            self.data[byte_offset + 56..=byte_offset + 63]
-                .try_into()
-                .unwrap(),
-        ) {
+        let address_alignment = self.endianness.get_u64(&self.data[byte_offset + 48..])?;
+        let section_entry_size = match self.endianness.get_u64(&self.data[byte_offset + 56..])? {
             0 => None,
             value => Some(value),
         };

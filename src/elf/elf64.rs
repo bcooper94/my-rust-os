@@ -81,11 +81,9 @@ impl<'a> Elf64File<'a> {
 
     fn parse_header(file_bytes: &'a [u8]) -> Result<Elf64Header, ElfParseError> {
         let endianness = Endian::from_byte(file_bytes[5])?;
-        let instruction_set =
-            InstructionSet::try_from(endianness.get_u16(&file_bytes[18..=19].try_into().unwrap()))?;
-        let elf_type =
-            ElfType::try_from(endianness.get_u16(&file_bytes[16..=17].try_into().unwrap()))?;
-        let program_entry_position = endianness.get_u64(&file_bytes[24..=31].try_into().unwrap());
+        let instruction_set = InstructionSet::try_from(endianness.get_u16(&file_bytes[18..])?)?;
+        let elf_type = ElfType::try_from(endianness.get_u16(&file_bytes[16..])?)?;
+        let program_entry_position = endianness.get_u64(&file_bytes[24..])?;
 
         Ok(Elf64Header {
             endianness,
@@ -93,14 +91,14 @@ impl<'a> Elf64File<'a> {
             os_abi: file_bytes[7],
             elf_type,
             instruction_set,
-            elf_version: endianness.get_u32(&file_bytes[20..=23].try_into().unwrap()),
+            elf_version: endianness.get_u32(&file_bytes[20..])?,
             program_entry_position,
-            program_header_summary: Self::parse_program_header_summary(file_bytes, &endianness),
+            program_header_summary: Self::parse_program_header_summary(file_bytes, &endianness)?,
             section_header_summary: Elf64SectionHeaderSummary {
-                table_position: endianness.get_u64(&file_bytes[40..=47].try_into().unwrap()),
-                entry_size: endianness.get_u16(&file_bytes[58..=59].try_into().unwrap()),
-                entry_count: endianness.get_u16(&file_bytes[60..=61].try_into().unwrap()),
-                names_index: endianness.get_u16(&file_bytes[62..=63].try_into().unwrap()),
+                table_position: endianness.get_u64(&file_bytes[40..])?,
+                entry_size: endianness.get_u16(&file_bytes[58..])?,
+                entry_count: endianness.get_u16(&file_bytes[60..])?,
+                names_index: endianness.get_u16(&file_bytes[62..])?,
             },
         })
     }
@@ -108,17 +106,17 @@ impl<'a> Elf64File<'a> {
     fn parse_program_header_summary(
         file_bytes: &'a [u8],
         endianness: &Endian,
-    ) -> Option<Elf64ProgramHeaderSummary> {
-        let table_position = endianness.get_u64(&file_bytes[32..=39].try_into().unwrap());
+    ) -> Result<Option<Elf64ProgramHeaderSummary>, ElfParseError> {
+        let table_position = endianness.get_u64(&file_bytes[32..])?;
 
         if table_position == 0 {
-            None
+            Ok(None)
         } else {
-            Some(Elf64ProgramHeaderSummary {
+            Ok(Some(Elf64ProgramHeaderSummary {
                 table_position,
-                entry_size: endianness.get_u16(&file_bytes[54..=55].try_into().unwrap()),
-                entry_count: endianness.get_u16(&file_bytes[56..=57].try_into().unwrap()),
-            })
+                entry_size: endianness.get_u16(&file_bytes[54..])?,
+                entry_count: endianness.get_u16(&file_bytes[56..])?,
+            }))
         }
     }
 
@@ -231,43 +229,37 @@ impl<'a> Iterator for Elf64ProgramHeaderIterator<'a> {
             if let Some(byte_offset) = self.header_summary.byte_offset(self.current_index) {
                 let segment_type = ProgramSegmentType::from(
                     self.endianness
-                        .get_u32(&self.data[byte_offset..=byte_offset + 3].try_into().unwrap()),
+                        .get_u32(&self.data[byte_offset..])
+                        .expect("Failed to parse segment_type"),
                 );
 
                 let header = Elf64ProgramHeader {
                     segment_type,
                     flags: ProgramHeaderFlags::from(
-                        self.endianness.get_u32(
-                            &self.data[byte_offset + 4..=byte_offset + 7]
-                                .try_into()
-                                .unwrap(),
-                        ),
+                        self.endianness
+                            .get_u32(&self.data[byte_offset + 4..])
+                            .expect("Failed to parse flags"),
                     ),
-                    p_offset: self.endianness.get_u64(
-                        &self.data[byte_offset + 8..=byte_offset + 15]
-                            .try_into()
-                            .unwrap(),
-                    ),
-                    p_vaddr: self.endianness.get_u64(
-                        &self.data[byte_offset + 16..=byte_offset + 23]
-                            .try_into()
-                            .unwrap(),
-                    ),
-                    p_filesz: self.endianness.get_u64(
-                        &self.data[byte_offset + 32..=byte_offset + 39]
-                            .try_into()
-                            .unwrap(),
-                    ),
-                    p_memsz: self.endianness.get_u64(
-                        &self.data[byte_offset + 40..=byte_offset + 47]
-                            .try_into()
-                            .unwrap(),
-                    ),
-                    alignment: self.endianness.get_u64(
-                        &self.data[byte_offset + 48..=byte_offset + 55]
-                            .try_into()
-                            .unwrap(),
-                    ),
+                    p_offset: self
+                        .endianness
+                        .get_u64(&self.data[byte_offset + 8..])
+                        .expect("Failed to parse p_offset"),
+                    p_vaddr: self
+                        .endianness
+                        .get_u64(&self.data[byte_offset + 16..])
+                        .expect("Failed to parse p_vaddr"),
+                    p_filesz: self
+                        .endianness
+                        .get_u64(&self.data[byte_offset + 32..])
+                        .expect("Failed to parse p_filesz"),
+                    p_memsz: self
+                        .endianness
+                        .get_u64(&self.data[byte_offset + 40..])
+                        .expect("Failed to parse p_memsz"),
+                    alignment: self
+                        .endianness
+                        .get_u64(&self.data[byte_offset + 48..])
+                        .expect("Failed to parse alignment"),
                 };
 
                 if !header.alignment.is_power_of_two() {

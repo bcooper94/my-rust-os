@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::{array::TryFromSliceError, convert::TryInto, fmt::Debug};
 
 pub mod elf32;
 pub mod elf64;
@@ -11,6 +11,7 @@ pub enum ElfParseError {
     InvalidEndianness,
     InvalidElfType,
     InvalidInstructionSetValue,
+    FailedToParseValue,
 
     InvalidProgramSegmentType(u32),
     InvalidProgramHeaderFlags(u32),
@@ -19,6 +20,12 @@ pub enum ElfParseError {
 
     InvalidSectionHeaderType(u32),
     MissingStringTable,
+}
+
+impl From<TryFromSliceError> for ElfParseError {
+    fn from(_: TryFromSliceError) -> Self {
+        Self::FailedToParseValue
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -90,24 +97,24 @@ impl Endian {
         }
     }
 
-    fn get_u16(&self, bytes: &[u8; 2]) -> u16 {
+    fn get_u16(&self, bytes: &[u8]) -> Result<u16, TryFromSliceError> {
         match self {
-            Endian::Big => u16::from_be_bytes(*bytes),
-            Endian::Little => u16::from_le_bytes(*bytes),
+            Endian::Big => Ok(u16::from_be_bytes(bytes[..2].try_into()?)),
+            Endian::Little => Ok(u16::from_le_bytes(bytes[..2].try_into()?)),
         }
     }
 
-    fn get_u32(&self, bytes: &[u8; 4]) -> u32 {
+    fn get_u32(&self, bytes: &[u8]) -> Result<u32, TryFromSliceError> {
         match self {
-            Endian::Big => u32::from_be_bytes(*bytes),
-            Endian::Little => u32::from_le_bytes(*bytes),
+            Endian::Big => Ok(u32::from_be_bytes(bytes[..4].try_into()?)),
+            Endian::Little => Ok(u32::from_le_bytes(bytes[..4].try_into()?)),
         }
     }
 
-    fn get_u64(&self, bytes: &[u8; 8]) -> u64 {
+    fn get_u64(&self, bytes: &[u8]) -> Result<u64, TryFromSliceError> {
         match self {
-            Endian::Big => u64::from_be_bytes(*bytes),
-            Endian::Little => u64::from_le_bytes(*bytes),
+            Endian::Big => Ok(u64::from_be_bytes(bytes[..8].try_into()?)),
+            Endian::Little => Ok(u64::from_le_bytes(bytes[..8].try_into()?)),
         }
     }
 }
