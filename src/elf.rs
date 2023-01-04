@@ -200,6 +200,90 @@ impl From<u32> for ProgramHeaderFlags {
     }
 }
 
+trait ParseAddress<Address> {
+    fn parse_address(endianness: Endian, data: &[u8]) -> Result<Address, ElfParseError>;
+}
+
+struct Parse32BitAddress {}
+
+impl ParseAddress<u32> for Parse32BitAddress {
+    fn parse_address(endianness: Endian, data: &[u8]) -> Result<u32, ElfParseError> {
+        Ok(endianness.get_u32(data)?)
+    }
+}
+
+struct Parse64BitAddress {}
+
+impl ParseAddress<u64> for Parse64BitAddress {
+    fn parse_address(endianness: Endian, data: &[u8]) -> Result<u64, ElfParseError> {
+        Ok(endianness.get_u64(data)?)
+    }
+}
+
+trait ElfHeader<AddressSize> {
+    type AddressParser: ParseAddress<AddressSize>;
+
+    const PROG_HEADER_TABLE_POS_INDEX: usize;
+    const PROG_HEADER_ENTRY_SIZE_INDEX: usize;
+    const PROG_HEADER_ENTRY_COUNT_INDEX: usize;
+
+    const SECTION_HEADER_TABLE_POS_INDEX: usize;
+    const SECTION_HEADER_ENTRY_SIZE_INDEX: usize;
+    const SECTION_HEADER_ENTRY_COUNT_INDEX: usize;
+    const SECTION_HEADER_NAMES_INDEX_INDEX: usize;
+
+    fn new(
+        endianness: Endian,
+        header_version: u8,
+        os_abi: u8,
+        elf_type: ElfType,
+        instruction_set: InstructionSet,
+        elf_version: u32,
+        program_entry_position: AddressSize,
+        program_header_table_position: AddressSize,
+        program_header_entry_size: u16,
+        program_header_entry_count: u16,
+        section_header_table_position: AddressSize,
+        section_header_entry_size: u16,
+        section_header_entry_count: u16,
+        section_names_index: u16,
+    ) -> Self;
+
+    fn from_bytes(file_bytes: &[u8]) -> Result<Self, ElfParseError>
+    where
+        Self: Sized,
+    {
+        let endianness = Endian::from_byte(file_bytes[5])?;
+        let elf_type = ElfType::try_from(endianness.get_u16(&file_bytes[16..])?)?;
+        let instruction_set = InstructionSet::try_from(endianness.get_u16(&file_bytes[18..])?)?;
+
+        let program_entry_position =
+            Self::AddressParser::parse_address(endianness, &file_bytes[24..])?;
+
+        Ok(Self::new(
+            endianness,
+            file_bytes[6],
+            file_bytes[7],
+            elf_type,
+            instruction_set,
+            endianness.get_u32(&file_bytes[20..])?,
+            program_entry_position,
+            Self::AddressParser::parse_address(
+                endianness,
+                &file_bytes[Self::PROG_HEADER_TABLE_POS_INDEX..],
+            )?,
+            endianness.get_u16(&file_bytes[Self::PROG_HEADER_ENTRY_SIZE_INDEX..])?,
+            endianness.get_u16(&file_bytes[Self::PROG_HEADER_ENTRY_COUNT_INDEX..])?,
+            Self::AddressParser::parse_address(
+                endianness,
+                &file_bytes[Self::SECTION_HEADER_TABLE_POS_INDEX..],
+            )?,
+            endianness.get_u16(&file_bytes[Self::SECTION_HEADER_ENTRY_SIZE_INDEX..])?,
+            endianness.get_u16(&file_bytes[Self::SECTION_HEADER_ENTRY_COUNT_INDEX..])?,
+            endianness.get_u16(&file_bytes[Self::SECTION_HEADER_NAMES_INDEX_INDEX..])?,
+        ))
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;

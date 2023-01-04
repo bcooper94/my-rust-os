@@ -1,8 +1,8 @@
-use core::{convert::TryInto, fmt::Debug};
+use core::fmt::Debug;
 
 use super::{
-    is_elf_file, ElfParseError, ElfType, Endian, InstructionSet, ProgramHeaderFlags,
-    ProgramSegmentType,
+    is_elf_file, ElfHeader, ElfParseError, ElfType, Endian, InstructionSet, Parse32BitAddress,
+    ProgramHeaderFlags, ProgramSegmentType,
 };
 
 #[derive(Debug, PartialEq)]
@@ -46,6 +46,63 @@ struct Elf32Header {
     section_header_summary: Elf32SectionHeaderSummary,
 }
 
+impl ElfHeader<u32> for Elf32Header {
+    type AddressParser = Parse32BitAddress;
+
+    const PROG_HEADER_TABLE_POS_INDEX: usize = 28;
+    const PROG_HEADER_ENTRY_SIZE_INDEX: usize = 42;
+    const PROG_HEADER_ENTRY_COUNT_INDEX: usize = 44;
+
+    const SECTION_HEADER_TABLE_POS_INDEX: usize = 32;
+    const SECTION_HEADER_ENTRY_SIZE_INDEX: usize = 46;
+    const SECTION_HEADER_ENTRY_COUNT_INDEX: usize = 48;
+    const SECTION_HEADER_NAMES_INDEX_INDEX: usize = 50;
+
+    fn new(
+        endianness: Endian,
+        header_version: u8,
+        os_abi: u8,
+        elf_type: ElfType,
+        instruction_set: InstructionSet,
+        elf_version: u32,
+        program_entry_position: u32,
+        program_header_table_position: u32,
+        program_header_entry_size: u16,
+        program_header_entry_count: u16,
+        section_header_table_position: u32,
+        section_header_entry_size: u16,
+        section_header_entry_count: u16,
+        section_names_index: u16,
+    ) -> Self {
+        let program_header_summary = if program_header_table_position == 0 {
+            None
+        } else {
+            Some(Elf32ProgramHeaderSummary {
+                table_position: program_header_table_position,
+                entry_size: program_header_entry_size,
+                entry_count: program_header_entry_count,
+            })
+        };
+
+        Self {
+            endianness,
+            header_version,
+            os_abi,
+            elf_type,
+            instruction_set,
+            elf_version,
+            program_entry_position,
+            program_header_summary,
+            section_header_summary: Elf32SectionHeaderSummary {
+                table_position: section_header_table_position,
+                entry_size: section_header_entry_size,
+                entry_count: section_header_entry_count,
+                names_index: section_names_index,
+            },
+        }
+    }
+}
+
 #[derive(PartialEq)]
 pub struct Elf32File<'a> {
     file_bytes: &'a [u8],
@@ -64,44 +121,7 @@ impl<'a> Elf32File<'a> {
     }
 
     fn parse_header(file_bytes: &'a [u8]) -> Result<Elf32Header, ElfParseError> {
-        let endianness = Endian::from_byte(file_bytes[5])?;
-        let instruction_set = InstructionSet::try_from(endianness.get_u16(&file_bytes[18..])?)?;
-        let elf_type = ElfType::try_from(endianness.get_u16(&file_bytes[16..])?)?;
-        let program_entry_position = endianness.get_u32(&file_bytes[24..])?;
-
-        Ok(Elf32Header {
-            endianness,
-            header_version: file_bytes[6],
-            os_abi: file_bytes[7],
-            elf_type,
-            instruction_set,
-            elf_version: endianness.get_u32(&file_bytes[20..])?,
-            program_entry_position,
-            program_header_summary: Self::parse_program_header_summary(file_bytes, &endianness)?,
-            section_header_summary: Elf32SectionHeaderSummary {
-                table_position: endianness.get_u32(&file_bytes[32..])?,
-                entry_size: endianness.get_u16(&file_bytes[46..])?,
-                entry_count: endianness.get_u16(&file_bytes[48..])?,
-                names_index: endianness.get_u16(&file_bytes[50..])?,
-            },
-        })
-    }
-
-    fn parse_program_header_summary(
-        file_bytes: &'a [u8],
-        endianness: &Endian,
-    ) -> Result<Option<Elf32ProgramHeaderSummary>, ElfParseError> {
-        let table_position = endianness.get_u32(&file_bytes[28..])?;
-
-        if table_position == 0 {
-            Ok(None)
-        } else {
-            Ok(Some(Elf32ProgramHeaderSummary {
-                table_position,
-                entry_size: endianness.get_u16(&file_bytes[42..])?,
-                entry_count: endianness.get_u16(&file_bytes[44..])?,
-            }))
-        }
+        Elf32Header::from_bytes(file_bytes)
     }
 
     pub fn program_headers(&self) -> Option<Elf32ProgramHeaderIterator> {
