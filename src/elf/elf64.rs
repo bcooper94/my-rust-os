@@ -1,9 +1,13 @@
 use core::{convert::TryInto, fmt::Debug};
 
+use self::sections::SectionHeaderIterator;
+
 use super::{
     ElfFileClass, ElfParseError, ElfType, Endian, InstructionSet, ProgramHeaderFlags,
     ProgramSegmentType,
 };
+
+mod sections;
 
 #[derive(Debug, PartialEq)]
 pub struct Elf64ProgramHeaderSummary {
@@ -24,11 +28,21 @@ impl Elf64ProgramHeaderSummary {
 }
 
 #[derive(Debug, PartialEq)]
-struct Elf64SectionHeaderSummary {
+pub struct Elf64SectionHeaderSummary {
     table_position: u64,
     entry_size: u16,
     entry_count: u16,
     names_index: u16,
+}
+
+impl Elf64SectionHeaderSummary {
+    fn byte_offset(&self, entry_index: u16) -> Option<usize> {
+        if entry_index < self.entry_count {
+            Some((self.table_position + (self.entry_size as u64) * (entry_index as u64)) as usize)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -119,6 +133,14 @@ impl<'a> Elf64File<'a> {
                     header_summary,
                 ))
             })
+    }
+
+    pub fn section_headers(&self) -> Result<SectionHeaderIterator, ElfParseError> {
+        SectionHeaderIterator::new(
+            self.file_bytes,
+            self.header.endianness,
+            &self.header.section_header_summary,
+        )
     }
 }
 
@@ -271,6 +293,7 @@ impl<'a> Iterator for Elf64ProgramHeaderIterator<'a> {
 
 #[cfg(test)]
 mod tests {
+    use super::sections::*;
     use super::*;
 
     #[test_case]
@@ -523,5 +546,599 @@ mod tests {
         );
 
         assert_eq!(0, headers.count());
+
+        assert_eq!(
+            29,
+            elf_file
+                .section_headers()
+                .expect("Failed to create section iterator")
+                .count()
+        );
+
+        let mut section_headers = elf_file
+            .section_headers()
+            .expect("Failed to create section iterator");
+
+        let expected = SectionHeader::new(
+            0,
+            SectionHeaderType::Null,
+            SectionHeaderFlags::empty(),
+            None,
+            0,
+            0,
+            None,
+            None,
+            0,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x1B,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC,
+            Some(0x4002A8),
+            0x2A8,
+            0x1C,
+            None,
+            None,
+            1,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x23,
+            SectionHeaderType::Note,
+            SectionHeaderFlags::ALLOC,
+            Some(0x4002C4),
+            0x2C4,
+            0x20,
+            None,
+            None,
+            4,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x35,
+            SectionHeaderType::Hash,
+            SectionHeaderFlags::ALLOC,
+            Some(0x4002E8),
+            0x2E8,
+            0x24,
+            Some(5),
+            None,
+            8,
+            Some(0x4),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x31,
+            SectionHeaderType::OperatingSystemSpecific(0x6FFFFFF6),
+            SectionHeaderFlags::ALLOC,
+            Some(0x400310),
+            0x310,
+            0x1C,
+            Some(5),
+            None,
+            8,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x3B,
+            SectionHeaderType::DynamicSymbols,
+            SectionHeaderFlags::ALLOC,
+            Some(0x400330),
+            0x330,
+            0x60,
+            Some(6),
+            Some(1),
+            8,
+            Some(0x18),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x43,
+            SectionHeaderType::StringTable,
+            SectionHeaderFlags::ALLOC,
+            Some(0x400390),
+            0x390,
+            0x3D,
+            None,
+            None,
+            1,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x4B,
+            SectionHeaderType::OperatingSystemSpecific(0x6FFFFFFF),
+            SectionHeaderFlags::ALLOC,
+            Some(0x4003CE),
+            0x3CE,
+            0x8,
+            Some(5),
+            None,
+            2,
+            Some(0x2),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x58,
+            SectionHeaderType::OperatingSystemSpecific(0x6FFFFFFE),
+            SectionHeaderFlags::ALLOC,
+            Some(0x4003D8),
+            0x3D8,
+            0x20,
+            Some(6),
+            Some(1),
+            8,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x67,
+            SectionHeaderType::RelA,
+            SectionHeaderFlags::ALLOC,
+            Some(0x4003F8),
+            0x3F8,
+            0x30,
+            Some(5),
+            None,
+            8,
+            Some(0x18),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x71,
+            SectionHeaderType::RelA,
+            SectionHeaderFlags::ALLOC | SectionHeaderFlags::INFO_LINK,
+            Some(0x400428),
+            0x428,
+            0x18,
+            Some(5),
+            Some(22),
+            8,
+            Some(0x18),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x7B,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC | SectionHeaderFlags::EXECUTABLE_INSTRUCTIONS,
+            Some(0x401000),
+            0x1000,
+            0x17,
+            None,
+            None,
+            4,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x76,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC | SectionHeaderFlags::EXECUTABLE_INSTRUCTIONS,
+            Some(0x401020),
+            0x1020,
+            0x20,
+            None,
+            None,
+            16,
+            Some(0x10),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x81,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC | SectionHeaderFlags::EXECUTABLE_INSTRUCTIONS,
+            Some(0x401040),
+            0x1040,
+            0x171,
+            None,
+            None,
+            16,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x87,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC | SectionHeaderFlags::EXECUTABLE_INSTRUCTIONS,
+            Some(0x4011B4),
+            0x11B4,
+            0x9,
+            None,
+            None,
+            4,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x8D,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC,
+            Some(0x402000),
+            0x2000,
+            0x10,
+            None,
+            None,
+            4,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x95,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC,
+            Some(0x402010),
+            0x2010,
+            0x3C,
+            None,
+            None,
+            4,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xA3,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::ALLOC,
+            Some(0x402050),
+            0x2050,
+            0x100,
+            None,
+            None,
+            8,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xAD,
+            SectionHeaderType::InitArray,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x403E00),
+            0x2E00,
+            0x8,
+            None,
+            None,
+            8,
+            Some(8),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xB9,
+            SectionHeaderType::FinishArray,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x403E08),
+            0x2E08,
+            0x8,
+            None,
+            None,
+            8,
+            Some(0x8),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xC5,
+            SectionHeaderType::Dynamic,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x403E10),
+            0x2E10,
+            0x1E0,
+            Some(6),
+            None,
+            8,
+            Some(0x10),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xCE,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x403FF0),
+            0x2FF0,
+            0x10,
+            None,
+            None,
+            8,
+            Some(0x8),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xD3,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x404000),
+            0x3000,
+            0x20,
+            None,
+            None,
+            8,
+            Some(0x8),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xDC,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x404020),
+            0x3020,
+            0x10,
+            None,
+            None,
+            8,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xE2,
+            SectionHeaderType::NoBits,
+            SectionHeaderFlags::WRITE | SectionHeaderFlags::ALLOC,
+            Some(0x404030),
+            0x3030,
+            0x8,
+            None,
+            None,
+            1,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0xE7,
+            SectionHeaderType::ProgramBits,
+            SectionHeaderFlags::MERGE | SectionHeaderFlags::STRINGS,
+            None,
+            0x3030,
+            0x12,
+            None,
+            None,
+            1,
+            Some(0x1),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x1,
+            SectionHeaderType::SymbolTable,
+            SectionHeaderFlags::empty(),
+            None,
+            0x3048,
+            0x5B8,
+            Some(27),
+            Some(43),
+            8,
+            Some(0x18),
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x9,
+            SectionHeaderType::StringTable,
+            SectionHeaderFlags::empty(),
+            None,
+            0x3600,
+            0x1C4,
+            None,
+            None,
+            1,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        let expected = SectionHeader::new(
+            0x11,
+            SectionHeaderType::StringTable,
+            SectionHeaderFlags::empty(),
+            None,
+            0x37C4,
+            0xF0,
+            None,
+            None,
+            1,
+            None,
+        );
+        assert_eq!(
+            expected,
+            section_headers
+                .next()
+                .unwrap()
+                .expect("Failed to parse section header")
+        );
+
+        assert_eq!(0, section_headers.count());
     }
 }

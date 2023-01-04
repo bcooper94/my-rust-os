@@ -16,6 +16,9 @@ pub enum ElfParseError {
     InvalidProgramHeaderFlags(u32),
     InvalidProgramHeaderAlignment,
     MultipleProgramHeaderEntriesFound,
+
+    InvalidSectionHeaderType(u32),
+    MissingStringTable,
 }
 
 #[derive(Debug, PartialEq)]
