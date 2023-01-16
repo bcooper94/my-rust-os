@@ -284,6 +284,49 @@ trait ElfHeader<AddressSize> {
         ))
     }
 }
+
+trait ProgramHeader<AddressSize> {
+    type AddressParser: ParseAddress<AddressSize>;
+
+    fn from_bytes(data: &[u8], endianness: Endian) -> Self {
+        let segment_type = ProgramSegmentType::from(
+            endianness
+                .get_u32(data)
+                .expect("Failed to parse segment_type"),
+        );
+        todo!()
+    }
+}
+
+struct ProgramHeaderSummary<AddressSize> {
+    table_position: AddressSize,
+    entry_size: u16,
+    entry_count: u16,
+}
+
+struct ElfProgramHeader<AddressSize> {
+    segment_type: ProgramSegmentType,
+    flags: ProgramHeaderFlags,
+
+    /// The offset in the file that the data for this segment can be found.
+    p_offset: AddressSize,
+
+    /// Where you should start to put this segment in virtual memory.
+    p_vaddr: AddressSize,
+
+    /// Size of the segment in the file.
+    p_filesz: AddressSize,
+
+    /// Size of the segment in memory. This can be 0. If the p_filesz and
+    /// p_memsz members differ, this indicates that the segment is padded with
+    /// zeros. All bytes in memory between the ending offset of the file size,
+    /// and the segment's virtual memory size are to be cleared with zeros.
+    p_memsz: AddressSize,
+
+    /// Required alignment for this section. Must be a power of 2.
+    alignment: AddressSize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

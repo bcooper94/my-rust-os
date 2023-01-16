@@ -298,11 +298,30 @@ impl SectionHeader {
     }
 }
 
+struct StringTable<'a> {
+    data: &'a [u8],
+    section_header: SectionHeader,
+}
+
+impl<'a> StringTable<'a> {
+    fn get_string(&self, index: u32) -> Option<&'a str> {
+        Some("")
+    }
+}
+
 pub struct SectionHeaderIterator<'a> {
     current_index: u16,
     data: &'a [u8],
     endianness: Endian,
     section_header_summary: &'a Elf64SectionHeaderSummary,
+}
+
+trait GenericSectionHeaderIterator<'a>: Iterator {
+    type Address;
+
+    const ENDIANNESS: Endian;
+
+    fn parse_address(&self, data: &'a [u8]) -> Result<Self::Address, ElfParseError>;
 }
 
 impl<'a> SectionHeaderIterator<'a> {
